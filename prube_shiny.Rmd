@@ -1,0 +1,74 @@
+---
+title: "Untitled"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+runtime: shiny
+
+   
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(tidyverse)
+library(plotly)
+```
+
+Column {data-width=150}
+-----------------------------------------------------------------------
+
+### Ejemplo
+
+```{r}
+New_func<- function(N,P,S,I,R,par_beta,par_gamma){
+  t=1
+  
+  for (t in 1:(P-1)){
+    S[t+1] <- S[t]-par_beta*(S[t]*I[t]/N)
+    I[t+1] <- I[t]+par_beta*(S[t]*I[t]/N)-par_gamma*I[t]
+    R[t+1] <- R[t]+par_gamma*I[t]
+  } 
+  p <- 1:P
+  data.frame(p,S,I,R)
+}
+
+sliderInput(inputId = "par_beta",label=h4("Beta"),
+           min=0,max=2,value = 1,step = 0.1)
+
+sliderInput(inputId = "par_gamma",label=h4("Gamma"),
+           min=0,max=1,value = 0.2,step = 0.05)
+
+
+numericInput("num1", label = h4("Poblacion"), value = 1000)
+numericInput("num2", label = h4("Infectados"), value = 1)
+numericInput("num3", label = h4("Recuperados"), value = 0)
+numericInput("num4", label = h4("Periodo"), value = 35)
+```
+
+Column {data-width=850}
+-----------------------------------------------------------------------
+
+
+### Chart C
+
+```{r}
+renderPlot({
+  
+modelo <-  New_func(input$num1,input$num4,input$num1 - input$num2,input$num2,input$num3,input$par_beta,input$par_gamma)%>% pivot_longer(names_to ="Val",cols = 2:4,values_to = "n") 
+
+p <- modelo %>% 
+  ggplot(mapping=aes(x=p,y=n,group=Val,color=Val))+
+  geom_line(size=1)+theme_minimal() +
+  scale_colour_brewer(palette = "Set1")+
+  scale_color_discrete(NULL,breaks=c("S","I","R"),labels = c("Suceptibles", "infectados", "Removidos"))+
+  labs(title = "Modelo SIR",x="Dias",y=NULL)
+
+p
+
+  }
+)
+
+```
+

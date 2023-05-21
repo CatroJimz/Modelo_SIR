@@ -1,0 +1,494 @@
+---
+title: "Covid-19 en Barranquilla"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    theme: 
+      version: 4
+      bootswatch: yeti
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(dygraphs)
+library(xts)
+library(lubridate)
+library(fontawesome)
+library(readr)
+library(highcharter)
+library(quantmod)
+library(RColorBrewer)
+library(nloptr)
+library(readr)
+# orientation: columns
+#    vertical_layout: scroll
+
+
+```
+
+
+```{r}
+
+datos_clear<- read_csv("Datos-covid-19.csv")
+
+datos_clear <- datos_clear %>% 
+  mutate(Estado=factor(Estado,labels = c("Activo",
+                                         "Fallecido","Fallecido","N/A","Recuperado"))) %>% 
+  mutate(across(c(Sexo,Tipo_contagio,Tipo_Recuperacion,Estado2), as.factor))
+ 
+
+tab <- datos_clear %>%group_by(Estado)  %>% summarise(n())
+
+```
+
+
+Descubrir
+==================
+
+Row {.tabset .tabset-fade}    
+------------------
+
+
+### Recuperados
+
+
+```{r}
+data_recuperado <- datos_clear %>% 
+  filter(Estado=="Recuperado") %>% 
+  group_by(fecha) %>% 
+  summarise(cantidad=n())
+
+
+Recup<- as.xts(data_recuperado$cantidad,
+               order.by =data_recuperado$fecha)
+
+# `xts objects
+ptg <- hchart(Recup)
+ptg %>% hc_colors("#5EBDB2") %>% 
+  hc_chart(plotBackgroundColor = NULL, 
+           plotBorderWidth =NULL,
+           borderWidth = 1
+           
+  ) %>% 
+  hc_yAxis(opposite = F)
+```
+
+
+### Contagiados
+
+
+```{r}
+data_contagiado <- datos_clear %>% 
+  group_by(fecha) %>% summarise(cantidad=n())
+
+Contg<- as.xts(data_contagiado$cantidad,order.by =data_contagiado$fecha)
+
+# `xts objects
+conw <- hchart(Contg)
+conw %>% hc_colors("#5EBDB2") %>% 
+  hc_chart(plotBackgroundColor = NULL, 
+           plotBorderWidth =0,
+           plotShadow = FALSE,  
+            borderWidth = 1
+           ) %>% 
+  hc_yAxis(opposite = F)
+  
+
+```
+
+
+### Fallecidos
+
+
+```{r}
+data_fallecido <- datos_clear %>% 
+  filter(Estado=="Fallecido") %>% 
+  group_by(fecha) %>% 
+  summarise(cantidad=n())
+Fallc<- as.xts(data_fallecido$cantidad,
+               order.by =data_fallecido$fecha)
+
+# `xts objects
+falw <- hchart(Fallc)
+falw %>% hc_colors("#5EBDB2") %>% 
+  hc_chart(plotBackgroundColor = NULL, 
+           plotBorderWidth =NULL,
+           borderWidth = 1
+           
+  ) %>% 
+  hc_yAxis(opposite = F)
+```
+
+
+rows 
+-----------------------------------------------------------------------
+
+### **Fallecidos**
+
+
+```{r}
+spam = data_fallecido$cantidad[length(data_fallecido$cantidad)]
+valueBox(
+  spam, icon = "fa-ribbon",
+  color =  "#EB1127"
+)
+```
+
+
+### **Contagiados**
+
+
+```{r}
+articles = data_contagiado$cantidad[length(data_contagiado$cantidad)]
+valueBox(articles, icon = "fa-ambulance",color="#F09111")
+
+```
+
+
+### **Recuperados**
+
+
+```{r}
+comments = data_recuperado$cantidad[length(data_recuperado$cantidad)]
+valueBox(comments, icon = "fa-heart", color = "#00F07A")
+```
+
+
+### **Casos Activos**
+
+
+```{r}
+comments = as.numeric(tab[1,2])
+valueBox(comments, color = "#288CA0")
+
+```
+
+
+### **Total Recuperados**
+
+
+```{r}
+comments = as.numeric(tab[4,2])
+valueBox(comments, color = "#288CA0")
+
+```
+
+
+### **Total Fallecidos**
+
+
+```{r}
+comments = as.numeric(tab[2,2])
+valueBox(comments, color = "#288CA0")
+
+```
+
+
+Estadistica 
+==================
+
+column {data-height=250}
+------------------------
+
+
+```{r}
+cols <-  brewer.pal(n = 4,name = "Dark2")
+```
+
+
+### Casos por edad
+
+
+```{r}
+
+hchart(datos_clear$Edad,name="Rango por edad",breaks = 20,color="#7570b3") %>% 
+  hc_colors(cols)
+
+```
+
+
+### Casos por sexo
+
+
+```{r}
+
+P_sexo <- datos_clear  %>%
+  group_by(Sexo) %>% summarise(cantidad=n())
+
+levels(P_sexo$Sexo) <- c("M","H" )
+
+P_sexo %>% 
+  mutate(Porcentaje=cantidad*100/sum(cantidad)) %>% 
+  mutate(Comentario=as.factor(paste(Sexo,sep = " ",
+                                    round(Porcentaje,2),"%"))) %>%
+  hchart(
+    "pie", hcaes(x =Comentario , y = cantidad),
+    name = "Casos"
+  ) %>%hc_colors(cols)
+```
+
+
+column {data-height=250}
+--------------------------------------
+
+### Tipo de contagio
+
+
+```{r}
+
+datos_clear %>% 
+  group_by(Tipo_contagio) %>% summarise(Cantidad=n())  %>% 
+  hchart("column",hcaes(y=Cantidad,group=Tipo_contagio)) %>% hc_colors(cols)
+
+```
+
+
+### Tipo de recuperacion
+
+
+```{r}
+
+P_Recup <- datos_clear %>% 
+  group_by(Tipo_Recuperacion) %>% summarise(Cantidad=n()) %>% 
+  mutate(Tipo_Recuperacion=factor(c("PCR","Tiempo","N/A"))) %>% 
+  mutate(Porcentaje=Cantidad*100/sum(Cantidad)) %>% 
+  mutate(Comentario=paste(Tipo_Recuperacion,sep=" ",round(Porcentaje,2),"%"))
+
+P_Recup %>% 
+hchart(
+    "pie", hcaes(x =Comentario , y = Cantidad),
+    name = "Casos"
+  ) %>%hc_colors(cols)
+
+```
+
+
+Que es el modelo SIR {data-navmenu="SIR"}
+==================
+
+Row {data-width=480}
+------------------
+
+### ¿Que es el modelo SIR?
+
+
+Es un modelo matemático de compartimentos de tres grupos de individuos 
+de una población que sufre el brote de una epidemia: 
+
+`r fontawesome::fa("fas fa-angle-right")` **Susceptibles (S):** individuos sanos propensos a contraer la enfermedad.
+
+`r fontawesome::fa("fas fa-angle-right")` **Infectados (I):** individuos que padecen la enfermedad, con capacidad de transmitirla a otros individuos. 
+
+`r fontawesome::fa("fas fa-angle-right")`**Removidos (R):** individuos recuperados o fallecidos, con inmunidad.
+
+$$S(t+1)=S(t)- \beta\frac{S(t) I(t)}{N}$$
+$$I(t+1)=I(t)+ \beta\frac{S(t) I(t)}{N}-\gamma I(t)$$
+$$R(t+1)=R(t)+ \gamma I(t),    t\geq1$$
+ $$p.v.i: 0<S(1)\leq N-1 , I(1)\geq 1, R(1)=0  $$
+
+Donde $$ \beta \geq 0 $$ es el producto del número promedio de contactos por persona
+en la unidad de tiempo y la probabilidad de transmisión de la enfermedad dado el
+contacto de un individuo suceptible y uno infectado.
+
+$$0< \gamma \leq 1$$ es el reciproco del número de dias promedio en los que una
+persona es infecciosa (tanscurrido este tiempo una fracción de los individuos 
+infectados pasa a ser inmune por recuperación o fallecimiento).
+
+Puedes personalizar tu modelo SIR haciendo click [aqui](https://castro-jimenez-21.shinyapps.io/Slider_prueba/?_ga=2.13369143.1851758280.1626328821-2070102972.1625210515)
+ 
+
+### Ejemplo
+
+
+```{r}
+
+Modelx <- function(x,N,T,S,I,R){
+  par_beta <- x[1]
+  par_gamma <- x[2]
+  t=1
+  
+  
+  for (t in 1:(T-1)){
+    S[t+1] <- S[t]-par_beta*(S[t]*I[t]/N)
+    I[t+1] <- I[t]+par_beta*(S[t]*I[t]/N)-par_gamma*I[t]
+    R[t+1] <- R[t]+par_gamma*I[t]
+  }
+  
+  data.frame(S,I,R)
+}
+```
+
+```{r}
+Graff <- Modelx(c(1,0.2),1000,35,999,1,0)
+p <- 1:35
+Graff <- data.frame(p,Graff)
+
+New <- pivot_longer(data = Graff,names_to ="Val",cols = 2:4,values_to = "n")
+
+g <- ggplot(data=New,mapping=aes(x=p,y=n,group=Val,color=Val))+
+  geom_line(size=1)+theme_minimal() +
+  scale_color_discrete(NULL,breaks=c("S","I","R"),labels = c("Suceptibles", "infectados", "Removidos"))+
+  labs(title = "Modelo SIR",subtitle = "beta=1 y gamma=0,2",
+       caption = "1000 habitantes,1 infectado y 0 removidos",x="Dias",y=NULL)
+
+g
+
+```
+
+
+Modelo SIR {data-navmenu="SIR"}
+==================
+
+
+```{r}
+
+data_recuperado <- datos_clear %>% 
+  filter(Estado=="Recuperado") %>% 
+  group_by(fecha) %>% 
+  summarise(cantidad=n())
+
+data_contagiado <- datos_clear %>% 
+  group_by(fecha) %>% summarise(cantidad=n())
+
+data_fallecido <- datos_clear %>% 
+  filter(Estado=="Fallecido") %>% 
+  group_by(fecha) %>% 
+  summarise(cantidad=n())
+
+Agre <- rbind(data_recuperado,data_fallecido)
+Removidos <- Agre %>% group_by(fecha) %>% summarise(cantidad=sum(cantidad))
+
+##############
+Y <- length(data_contagiado$cantidad)
+
+
+So <- 1274250
+
+for(i in 1:(Y-1)){
+  
+  So[i+1]=So[i]-data_contagiado$cantidad[i]
+  
+}
+So <- So[-(i+1)]
+
+
+Io <- 0
+
+for(j in 1:(Y-1)){
+  
+  Io[j+1]=Io[j]+data_contagiado$cantidad[j]
+}
+
+Io <- Io[-1]
+
+
+Ro <- 0
+
+for(k in 1:(Y-1)){
+  
+  Ro[k+1]=Removidos$cantidad[k]+Ro[k]
+}
+
+Ro<- Ro[-1]
+
+#no hay diferencia en los valores
+#setdiff(x = Removidos$fecha,y=data_contagiado$fecha)
+
+
+opt <- function(x){
+  
+  par_beta <- x[1]
+  par_gamma <- x[2]
+  N=1026692
+  T=length(So)
+  S=1026620
+  I=Io[1]
+  R=Ro[1]
+  t=1
+  
+  
+  for (t in 1:(T-1)){
+    S[t+1] <- S[t]-par_beta*(S[t]*I[t]/N)
+    I[t+1] <- I[t]+par_beta*(S[t]*I[t]/N)-par_gamma*I[t]
+    R[t+1] <- R[t]+par_gamma*I[t]
+  }
+  
+  #cambie a los valores 
+  sum((So-S)^2+(Ro-R)^2+(Io-I)^2)
+  
+}
+
+lb <- c(0,0)
+ub <- c(Inf,1)
+
+#Modelo lineal  
+optimo <- bobyqa(c(0.56,0.21), opt, lower = lb, upper = ub)
+valores <- optimo[["par"]]
+
+Modelx <- function(x,N,T,S,I,R){
+  par_beta <- x[1]
+  par_gamma <- x[2]
+  t=1
+  
+  
+  for (t in 1:(T-1)){
+    S[t+1] <- S[t]-par_beta*(S[t]*I[t]/N)
+    I[t+1] <- I[t]+par_beta*(S[t]*I[t]/N)-par_gamma*I[t]
+    R[t+1] <- R[t]+par_gamma*I[t]
+  }
+  
+  data.frame(S,I,R)
+}
+
+ModeloSIR <- Modelx(c(valores[1],valores[2]),1026692,length(So),So[1],Io[1],Ro[1])
+
+#eliminar notacion cientifica
+options(scipen=999)
+
+unid <- cbind(So,S=ModeloSIR$S)
+unid<- as.xts(unid,order.by =Removidos$fecha)
+
+unid2 <- cbind(Io,I=ModeloSIR$I)
+unid2<- as.xts(unid2,order.by =Removidos$fecha)
+
+unid3 <- cbind(Ro,R=ModeloSIR$R)
+unid3<- as.xts(unid3,order.by =Removidos$fecha)
+
+```
+
+
+ Columna {.tabset .tabset-fade}  
+-------------------------------------
+
+### Suceptibles
+
+
+```{r}
+dygraph(unid) %>%
+  dySeries("So", label = "Suceptibles") %>%
+  dySeries("S", label = "Valor optimo") 
+```
+
+
+### Infectados
+
+
+```{r}
+dygraph(unid2) %>%
+  dySeries("Io", label = "Infectados") %>%
+  dySeries("I", label = "Valor optimo") 
+```
+
+
+### Removidos
+
+
+```{r}
+dygraph(unid3) %>%
+  dySeries("Ro", label = "Removidos") %>%
+  dySeries("R", label = "Valor optimo") 
+```
+
+
+

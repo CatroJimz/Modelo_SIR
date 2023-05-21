@@ -1,0 +1,348 @@
+---
+title: "Covid-19 en Barranquilla"
+output: 
+  flexdashboard::flex_dashboard:
+runtime: shiny
+
+---
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(dygraphs)
+library(xts)
+library(lubridate)
+library(fontawesome)
+library(readr)
+library(highcharter)
+library(quantmod)
+library(RColorBrewer)
+library(readr)
+library(plotly)
+# orientation: columns
+#    vertical_layout: scroll
+
+
+```
+
+
+```{r}
+
+datos_clear<- read_csv("Datos-covid-19.csv")
+
+datos_clear <- datos_clear %>% 
+  mutate(Estado=factor(Estado,labels = c("Activo",
+                                         "Fallecido","Fallecido","N/A","Recuperado"))) %>% 
+  mutate(across(c(Sexo,Tipo_contagio,Tipo_Recuperacion,Estado2), as.factor))
+
+```
+
+
+Descubrir
+==================
+
+Row {.tabset .tabset-fade}    
+------------------
+
+
+  
+### Recuperados
+
+```{r}
+data_recuperado <- datos_clear %>% 
+  filter(Estado=="Recuperado") %>% 
+  group_by(fecha) %>% 
+  summarise(cantidad=n())
+
+
+Recup<- as.xts(data_recuperado$cantidad,
+               order.by =data_recuperado$fecha)
+
+# `xts objects
+ptg <- hchart(Recup)
+ptg %>% hc_colors("#5EBDB2") %>% 
+  hc_chart(plotBackgroundColor = NULL, 
+           plotBorderWidth =NULL,
+           borderWidth = 1
+           
+  ) %>% 
+  hc_yAxis(opposite = F)
+```
+
+
+### Contagiados
+
+```{r}
+data_contagiado <- datos_clear %>% 
+  group_by(fecha) %>% summarise(cantidad=n())
+
+Contg<- as.xts(data_contagiado$cantidad,order.by =data_contagiado$fecha)
+
+# `xts objects
+conw <- hchart(Contg)
+conw %>% hc_colors("#5EBDB2") %>% 
+  hc_chart(plotBackgroundColor = NULL, 
+           plotBorderWidth =0,
+           plotShadow = FALSE,  
+            borderWidth = 1
+           ) %>% 
+  hc_yAxis(opposite = F)
+  
+
+```
+
+
+
+### Fallecidos
+
+```{r}
+data_fallecido <- datos_clear %>% 
+  filter(Estado=="Fallecido") %>% 
+  group_by(fecha) %>% 
+  summarise(cantidad=n())
+Fallc<- as.xts(data_fallecido$cantidad,
+               order.by =data_fallecido$fecha)
+
+# `xts objects
+falw <- hchart(Fallc)
+falw %>% hc_colors("#5EBDB2") %>% 
+  hc_chart(plotBackgroundColor = NULL, 
+           plotBorderWidth =NULL,
+           borderWidth = 1
+           
+  ) %>% 
+  hc_yAxis(opposite = F)
+```
+------------------
+
+
+Row {data-width=100}
+----------------------------------------------------------------------
+
+### **Recuperados**
+
+```{r}
+comments = data_recuperado$cantidad[length(data_recuperado$cantidad)]
+valueBox(comments, icon = "fa-heart", color = "#00F07A")
+```
+
+### **Contagiados**
+
+```{r}
+articles = data_contagiado$cantidad[length(data_contagiado$cantidad)]
+valueBox(articles, icon = "fa-ambulance",color="#F09111")
+
+```
+
+
+### **Fallecidos**
+
+
+```{r}
+spam = data_fallecido$cantidad[length(data_fallecido$cantidad)]
+valueBox(
+  spam, icon = "fa-ribbon",
+  color =  "#EB1127"
+)
+```
+
+Estadistica 
+==================
+
+column {data-height=250}
+------------------------
+### Casos por edad
+
+```{r}
+
+hchart(datos_clear$Edad,name="Rango por edad",breaks = 20,color="#7570b3")
+
+```
+
+
+### Casos por sexo
+
+```{r}
+cols <-  brewer.pal(n = 4,name = "Dark2")
+
+P_sexo <- datos_clear  %>%
+  group_by(Sexo) %>% summarise(cantidad=n())
+
+levels(P_sexo$Sexo) <- c("Mujer","Hombre" )
+
+P_sexo %>% 
+  mutate(Porcentaje=cantidad*100/sum(cantidad)) %>% 
+  mutate(Comentario=as.factor(paste(Sexo,sep = " ",
+                                    round(Porcentaje,2),"%"))) %>%
+  hchart(
+    "pie", hcaes(x =Comentario , y = cantidad),
+    name = "Casos"
+  ) %>%hc_colors(cols)
+```
+column {data-height=250}
+--------------------------------------
+### Tipo de contagio
+
+```{r}
+
+datos_clear %>% 
+  group_by(Tipo_contagio) %>% summarise(Cantidad=n())  %>% 
+  hchart("column",hcaes(y=Cantidad,group=Tipo_contagio)) %>% hc_colors(cols)
+
+```
+
+
+### Tipo de recuperacion
+
+```{r}
+
+P_Recup <- datos_clear %>% 
+  group_by(Tipo_Recuperacion) %>% summarise(Cantidad=n()) %>% 
+  mutate(Tipo_Recuperacion=factor(c("PCR","Tiempo","Fallecido"))) %>% 
+  mutate(Porcentaje=Cantidad*100/sum(Cantidad)) %>% 
+  mutate(Comentario=paste(Tipo_Recuperacion,sep=" ",round(Porcentaje,2),"%"))
+
+P_Recup %>% 
+hchart(
+    "pie", hcaes(x =Comentario, y = Cantidad),
+    name = "Casos"
+  ) %>%hc_colors(cols) 
+
+```
+
+
+
+Que es el modelo SIR {data-navmenu="SIR"}
+==================
+
+Column {data-width=480}
+------------------
+
+### ¿Que es el modelo SIR?
+
+
+
+Es un modelo matemático de compartimentos de tres grupos de individuos 
+de una población que sufre el brote de una epidemia: 
+
+`r fontawesome::fa("fas fa-angle-right")` **Susceptibles (S):** individuos sanos propensos a contraer la enfermedad.
+
+`r fontawesome::fa("fas fa-angle-right")` **Infectados (I):** individuos que padecen la enfermedad, con capacidad de transmitirla a otros individuos. 
+
+`r fontawesome::fa("fas fa-angle-right")`**Removidos (R):** individuos recuperados o fallecidos, con inmunidad.
+
+$$S(t+1)=S(t)- \beta\frac{S(t) I(t)}{N}$$
+$$I(t+1)=I(t)+ \beta\frac{S(t) I(t)}{N}-\gamma I(t)$$
+$$R(t+1)=R(t)+ \gamma I(t),    t\geq1$$
+ $$p.v.i: 0<S(1)\leq N-1 , I(1)\geq 1, R(1)=0  $$
+
+Donde $$ \beta \geq 0 $$ es el producto del número promedio de contactos por persona
+en la unidad de tiempo y la probabilidad de transmisión de la enfermedad dado el
+contacto de un individuo suceptible y uno infectado.
+
+y $$0< \gamma \leq 1$$ es el reciproco del número de dias promedio en los que una
+persona es infecciosa (tanscurrido este tiempo una fracción de los individuos 
+infectados pasa a ser inmune por recuperación o fallecimiento).
+
+Column {data-width=520}
+-----------------------------------------------------------------------
+### Ejemplo
+```{r}
+
+
+
+N=1000
+par_beta= 1
+par_gamma= 0.2
+T=35
+S=999
+I=1
+R=0
+t=1
+
+for (t in 1:34){
+S[t+1] <- S[t]-par_beta*(S[t]*I[t]/N)
+I[t+1] <- I[t]+par_beta*(S[t]*I[t]/N)-par_gamma*I[t]
+R[t+1] <- R[t]+par_gamma*I[t]
+}
+
+p <- 1:T
+
+Datos <- data.frame(p,S,I,R)
+New <- pivot_longer(data = Datos,names_to ="Val",cols = 2:4,values_to = "n")
+
+g <- ggplot(data=New,mapping=aes(x=p,y=n,group=Val,color=Val))+
+  geom_line(size=1)+theme_minimal() +
+  scale_colour_brewer(palette = "Set1")+
+  scale_color_discrete(NULL,breaks=c("S","I","R"),labels = c("Suceptibles", "infectados", "Removidos"))+
+  labs(title = "Modelo SIR",subtitle = "beta=1 y gamma=0,2",
+       caption = "1000 habitantes,1 infectado y 0 removidos",x="Dias",y=NULL)
+  
+g
+```
+
+
+Explorar {data-navmenu="SIR"}
+==================
+
+Column {data-width=150}
+-----------------------------------------------------------------------
+
+### Parametros
+```{r}
+New_func<- function(N,P,S,I,R,par_beta,par_gamma){
+  t=1
+  
+  for (t in 1:(P-1)){
+    S[t+1] <- S[t]-par_beta*(S[t]*I[t]/N)
+    I[t+1] <- I[t]+par_beta*(S[t]*I[t]/N)-par_gamma*I[t]
+    R[t+1] <- R[t]+par_gamma*I[t]
+  } 
+  p <- 1:P
+  data.frame(periodo=p,Suceptibles=S,Infectados=I,Removidos=R)
+}
+
+sliderInput(inputId = "par_beta",label=h4("Beta"),
+           min=0,max=2,value = 1,step = 0.1)
+
+sliderInput(inputId = "par_gamma",label=h4("Gamma"),
+           min=0,max=1,value = 0.2,step = 0.05)
+
+
+numericInput("num1", label = h4("Poblacion"), value = 1000)
+numericInput("num2", label = h4("Infectados"), value = 1)
+numericInput("num3", label = h4("Recuperados"), value = 0)
+numericInput("num4", label = h4("Periodo"), value = 35)
+```
+
+Column {data-width=850}
+-----------------------------------------------------------------------
+
+
+### 
+
+```{r}
+renderPlotly({
+  
+modelo <-  New_func(input$num1,input$num4,input$num1 - input$num2,input$num2,input$num3,input$par_beta,input$par_gamma)%>% pivot_longer(names_to ="Estado",cols = 2:4,values_to = "n") 
+
+p <- modelo %>% 
+  ggplot(mapping=aes(x=periodo,y=n,color=Estado))+
+  geom_line(size=1)+theme_minimal() +
+  scale_colour_brewer(palette = "Set1")+
+  labs(title = NULL,x=NULL,y="Poblacion")
+ggplotly(p)
+
+
+
+  }
+)
+
+```
+
+Modelo SIR {data-navmenu="SIR"}
+==================
+ Columna {.tabset .tabset-fade}  
+-------------------------------------
+
+
+
